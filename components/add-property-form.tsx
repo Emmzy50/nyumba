@@ -9,8 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Upload, X, MapPin, Home, DollarSign, FileText, Camera } from "lucide-react"
+import { Upload, X, MapPin, Home, FileText, Camera } from "lucide-react"
 import { useState } from "react"
+import { addProperty } from "@/lib/firebase/firestore"
+import { uploadPropertyImages } from "@/lib/firebase/storage"
+import { useAppStore } from "@/lib/store"
+import type { Property } from "@/lib/types"
 
 interface PropertyFormData {
   title: string
@@ -24,7 +28,7 @@ interface PropertyFormData {
   images: File[]
 }
 
-export default function AddPropertyForm() {
+export function AddPropertyForm() {
   const [formData, setFormData] = useState<PropertyFormData>({
     title: "",
     location: "",
@@ -38,6 +42,8 @@ export default function AddPropertyForm() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+
+  const { user } = useAppStore()
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -90,28 +96,47 @@ export default function AddPropertyForm() {
     setIsSubmitting(true)
 
     try {
-      // Create FormData for file upload
-      const submitData = new FormData()
+      if (!user) {
+        alert("You must be logged in to add a property.")
+        return
+      }
 
-      // Add text fields
-      Object.entries(formData).forEach(([key, value]) => {
-        if (key !== "images") {
-          submitData.append(key, value as string)
+      let imageUrls: string[] = []
+      if (formData.images.length > 0) {
+        try {
+          imageUrls = await uploadPropertyImages(formData.images)
+        } catch (imageError) {
+          console.error("Error uploading images:", imageError)
+          alert("Failed to upload images. Please try again.")
+          return
         }
-      })
+      }
 
-      // Add images
-      formData.images.forEach((image, index) => {
-        submitData.append(`image_${index}`, image)
-      })
+      const propertyData: Omit<Property, "id"> = {
+        title: formData.title,
+        location: formData.location,
+        price: Number(formData.price),
+        propertyType: formData.propertyType,
+        bedrooms: formData.bedrooms === "studio" ? 0 : Number(formData.bedrooms.replace("+", "")),
+        bathrooms: Number(formData.bathrooms.replace("+", "")),
+        description: formData.description,
+        images: imageUrls,
+        area: 1000,
+        amenities: [],
+        landlord: {
+          name: user.name,
+          email: user.email,
+          phone: user.phone || "",
+          avatar: user.avatar || "",
+        },
+        availableFrom: new Date().toISOString().split("T")[0],
+        coordinates: { lat: 0, lng: 0 },
+        virtualTour: "",
+      }
 
-      // Here you would typically send to your API
-      console.log("Property data:", formData)
+      const propertyId = await addProperty(propertyData)
+      console.log("Property saved with ID:", propertyId)
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // Reset form on success
       setFormData({
         title: "",
         location: "",
@@ -179,6 +204,7 @@ export default function AddPropertyForm() {
                     <SelectItem value="townhouse">Townhouse</SelectItem>
                     <SelectItem value="studio">Studio</SelectItem>
                     <SelectItem value="duplex">Duplex</SelectItem>
+                    <SelectItem value="boarding-house">Boarding House</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -226,14 +252,14 @@ export default function AddPropertyForm() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Monthly Rent *</Label>
+                <Label htmlFor="price">Monthly Rent (ZMW) *</Label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">ZMW</span>
                   <Input
                     id="price"
                     type="number"
-                    placeholder="2500"
-                    className="pl-10"
+                    placeholder="4500"
+                    className="pl-12"
                     value={formData.price}
                     onChange={(e) => handleInputChange("price", e.target.value)}
                     required
@@ -259,7 +285,7 @@ export default function AddPropertyForm() {
                 <Label htmlFor="location">Full Address *</Label>
                 <Input
                   id="location"
-                  placeholder="e.g., 123 Main St, New York, NY 10001"
+                  placeholder="e.g., 123 Main St, Lusaka, Zambia"
                   value={formData.location}
                   onChange={(e) => handleInputChange("location", e.target.value)}
                   required
@@ -313,7 +339,6 @@ export default function AddPropertyForm() {
             <CardDescription>Upload up to 6 high-quality images of your property</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Upload Area */}
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
@@ -346,7 +371,6 @@ export default function AddPropertyForm() {
               </Button>
             </div>
 
-            {/* Image Preview */}
             {formData.images.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -389,3 +413,5 @@ export default function AddPropertyForm() {
     </div>
   )
 }
+
+export default AddPropertyForm
