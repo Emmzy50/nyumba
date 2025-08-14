@@ -25,14 +25,13 @@ import {
   ArrowLeft,
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { getPropertiesByLandlord } from "./lib/property-store"
-import { LogoutDialog } from "./logout-dialog"
-import { getCurrentUser, initializeMockUser } from "./lib/auth-utils"
-import { clearCurrentUser } from "./lib/auth-utils"
-import AddPropertyForm from "./add-property-form"
-import ProfileManagement from "./profile-management"
+import { getPropertiesByLandlord } from "@/components/lib/property-store"
+import { LogoutDialog } from "@/components/logout-dialog"
+import { getCurrentUser, initializeMockUser, clearCurrentUser } from "@/components/lib/auth-utils"
+import AddPropertyForm from "@/components/add-property-form"
+import ProfileManagement from "@/components/profile-management"
+import VerificationPrompt from "@/components/verification-prompt"
 import { useAppStore } from "@/lib/store"
-import VerificationPrompt from "./verification-prompt"
 import { api } from "@/lib/api"
 
 export default function Dashboard() {
