@@ -32,6 +32,14 @@ const mockUser = {
   avatar: "/placeholder.svg?height=40&width=40&text=JD",
 }
 
+// Helper function to format numbers as Zambian Kwacha
+const formatKwacha = (amount: number) => {
+  return new Intl.NumberFormat("en-ZM", {
+    style: "currency",
+    currency: "ZMW",
+  }).format(amount)
+}
+
 export default function PropertyBrowse() {
   const [searchTerm, setSearchTerm] = useState("")
   const [priceRange, setPriceRange] = useState("all")
@@ -166,7 +174,7 @@ export default function PropertyBrowse() {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-green-600">${property.price.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-green-600">{formatKwacha(property.price)}</div>
               <div className="text-sm text-gray-500">per month</div>
             </div>
           </div>
@@ -234,7 +242,7 @@ export default function PropertyBrowse() {
                 Back
               </Button>
               <Home className="h-8 w-8 text-blue-600 mr-2" />
-              <h1 className="text-xl font-bold text-gray-900">RealEstate</h1>
+              <h1 className="text-xl font-bold text-gray-900">Nyumba</h1>
             </div>
 
             {/* User Menu */}
@@ -330,10 +338,10 @@ export default function PropertyBrowse() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Prices</SelectItem>
-                            <SelectItem value="under-2000">Under $2,000</SelectItem>
-                            <SelectItem value="2000-3000">$2,000 - $3,000</SelectItem>
-                            <SelectItem value="3000-4000">$3,000 - $4,000</SelectItem>
-                            <SelectItem value="over-4000">Over $4,000</SelectItem>
+                            <SelectItem value="under-2000">Under ZMW 2,000</SelectItem>
+                            <SelectItem value="2000-3000">ZMW 2,000 - 3,000</SelectItem>
+                            <SelectItem value="3000-4000">ZMW 3,000 - 4,000</SelectItem>
+                            <SelectItem value="over-4000">Over ZMW 4,000</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -368,6 +376,7 @@ export default function PropertyBrowse() {
                             <SelectItem value="condo">Condo</SelectItem>
                             <SelectItem value="townhouse">Townhouse</SelectItem>
                             <SelectItem value="studio">Studio</SelectItem>
+                            <SelectItem value="boarding-house">Boarding House</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

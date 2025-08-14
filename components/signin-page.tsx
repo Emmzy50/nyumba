@@ -7,21 +7,42 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Eye, EyeOff, Home, Users, Building2, Search, CheckCircle, Star, Shield } from "lucide-react"
+import { Eye, EyeOff, Home, Building2, Shield } from "lucide-react"
 import { setCurrentUser, type User } from "./lib/auth-utils"
 
-export default function SignupPage() {
+// Mock user database for demonstration
+const mockUsers: User[] = [
+  {
+    id: "1",
+    name: "John Doe",
+    email: "tenant@example.com",
+    avatar: "/placeholder.svg?height=40&width=40&text=JD",
+    role: "tenant",
+    joinDate: "January 2024",
+    phone: "+265 991 234 567",
+    bio: "Looking for a comfortable place to call home in Malawi.",
+    verified: true,
+  },
+  {
+    id: "2",
+    name: "Sarah Johnson",
+    email: "landlord@example.com",
+    avatar: "/placeholder.svg?height=40&width=40&text=SJ",
+    role: "landlord",
+    joinDate: "December 2023",
+    phone: "+265 999 876 543",
+    bio: "Experienced property owner with multiple listings in Lilongwe and Blantyre.",
+    verified: true,
+  },
+]
+
+export default function SignInPage() {
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     password: "",
-    confirmPassword: "",
-    role: "",
   })
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
@@ -36,10 +57,6 @@ export default function SignupPage() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Name is required"
-    }
-
     if (!formData.email.trim()) {
       newErrors.email = "Email is required"
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
@@ -48,18 +65,6 @@ export default function SignupPage() {
 
     if (!formData.password) {
       newErrors.password = "Password is required"
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters"
-    }
-
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = "Please confirm your password"
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match"
-    }
-
-    if (!formData.role) {
-      newErrors.role = "Please select your role"
     }
 
     setErrors(newErrors)
@@ -77,41 +82,54 @@ export default function SignupPage() {
 
     try {
       // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 1500))
 
-      // Create user object
-      const newUser: User = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        avatar: `/placeholder.svg?height=40&width=40&text=${formData.name.charAt(0)}`,
-        role: formData.role as "landlord" | "tenant",
-        joinDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-        phone: "",
-        bio: "",
-        verified: false,
+      // Find user in mock database
+      const user = mockUsers.find((u) => u.email === formData.email)
+
+      if (!user) {
+        setErrors({ submit: "Invalid email or password" })
+        return
+      }
+
+      // In a real app, you'd verify the password hash
+      // For demo purposes, we'll accept any password for existing users
+      if (formData.password.length < 1) {
+        setErrors({ submit: "Invalid email or password" })
+        return
       }
 
       // Save user to localStorage
-      setCurrentUser(newUser)
+      setCurrentUser(user)
 
       // Redirect based on role
-      if (formData.role === "tenant") {
+      if (user.role === "tenant") {
         window.location.href = "/home"
       } else {
         window.location.href = "/dashboard"
       }
     } catch (error) {
-      console.error("Signup error:", error)
-      setErrors({ submit: "Failed to create account. Please try again." })
+      console.error("Sign in error:", error)
+      setErrors({ submit: "Failed to sign in. Please try again." })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleOAuthSignup = (provider: "google" | "facebook") => {
+  const handleOAuthSignIn = (provider: "google" | "facebook") => {
     // In a real app, this would redirect to OAuth provider
-    window.location.href = `/api/auth/${provider}`
+    console.log(`OAuth sign in with ${provider}`)
+    alert(`${provider} sign-in would be implemented here`)
+  }
+
+  const handleDemoLogin = (userType: "tenant" | "landlord") => {
+    const demoUser = mockUsers.find((u) => u.role === userType)
+    if (demoUser) {
+      setFormData({
+        email: demoUser.email,
+        password: "demo123",
+      })
+    }
   }
 
   return (
@@ -134,14 +152,24 @@ export default function SignupPage() {
               <a href="#contact" className="text-sm lg:text-base text-gray-600 hover:text-gray-900 transition-colors">
                 Contact
               </a>
-              <Button variant="outline" size="sm" className="text-sm bg-transparent">
-                Sign In
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-sm bg-transparent"
+                onClick={() => (window.location.href = "/signup")}
+              >
+                Sign Up
               </Button>
             </div>
             {/* Mobile menu button */}
             <div className="md:hidden">
-              <Button variant="outline" size="sm" className="text-sm bg-transparent">
-                Sign In
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-sm bg-transparent"
+                onClick={() => (window.location.href = "/signup")}
+              >
+                Sign Up
               </Button>
             </div>
           </div>
@@ -149,35 +177,41 @@ export default function SignupPage() {
       </header>
 
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)] sm:min-h-[calc(100vh-80px)]">
-        {/* Left Side - Hero Content */}
+        {/* Left Side - Welcome Back Content */}
         <div className="lg:w-1/2 flex items-center justify-center p-4 sm:p-6 lg:p-12 order-2 lg:order-1">
           <div className="max-w-md w-full">
             <div className="text-center mb-6 lg:mb-8">
               <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 rounded-full mb-3 sm:mb-4">
                 <Home className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Find Your Perfect Home</h1>
-              <p className="text-sm sm:text-base text-gray-600">Join thousands of landlords and tenants using Nyumba</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Welcome Back!</h1>
+              <p className="text-sm sm:text-base text-gray-600">Sign in to continue your property journey</p>
             </div>
 
-            {/* Features */}
-            <div className="space-y-3 sm:space-y-4 mb-6 lg:mb-8">
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
-                <span className="text-sm sm:text-base text-gray-700">Verified property listings</span>
+            {/* Demo Accounts */}
+            <div className="bg-blue-50 rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-semibold text-blue-900 mb-3">Try Demo Accounts:</h3>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs bg-white/80"
+                  onClick={() => handleDemoLogin("tenant")}
+                >
+                  <Home className="h-3 w-3 mr-2" />
+                  Demo Tenant (tenant@example.com)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs bg-white/80"
+                  onClick={() => handleDemoLogin("landlord")}
+                >
+                  <Building2 className="h-3 w-3 mr-2" />
+                  Demo Landlord (landlord@example.com)
+                </Button>
               </div>
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
-                <span className="text-sm sm:text-base text-gray-700">Direct landlord communication</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
-                <span className="text-sm sm:text-base text-gray-700">Advanced search filters</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
-                <span className="text-sm sm:text-base text-gray-700">Secure application process</span>
-              </div>
+              <p className="text-xs text-blue-700 mt-2">Click to auto-fill credentials, then sign in</p>
             </div>
 
             {/* Stats */}
@@ -192,74 +226,23 @@ export default function SignupPage() {
               </div>
               <div>
                 <div className="text-xl sm:text-2xl font-bold text-blue-600">4.8</div>
-                <div className="text-xs sm:text-sm text-gray-600 flex items-center justify-center">
-                  <Star className="h-2.5 w-2.5 sm:h-3 sm:w-3 fill-yellow-400 text-yellow-400 mr-1" />
-                  Rating
-                </div>
+                <div className="text-xs sm:text-sm text-gray-600">Rating</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right Side - Signup Form */}
+        {/* Right Side - Sign In Form */}
         <div className="lg:w-1/2 flex items-center justify-center p-4 sm:p-6 lg:p-12 bg-white/50 order-1 lg:order-2">
           <Card className="w-full max-w-md shadow-xl border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="space-y-1 text-center px-4 sm:px-6 pt-4 sm:pt-6">
-              <CardTitle className="text-xl sm:text-2xl font-bold">Create Account</CardTitle>
+              <CardTitle className="text-xl sm:text-2xl font-bold">Sign In</CardTitle>
               <CardDescription className="text-sm sm:text-base">
-                Choose your account type and get started today
+                Enter your credentials to access your account
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6 pb-4 sm:pb-6">
               <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-                {/* Role Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="role" className="text-sm font-medium">
-                    I am a *
-                  </Label>
-                  <Select value={formData.role} onValueChange={(value) => handleInputChange("role", value)}>
-                    <SelectTrigger className={`h-10 sm:h-11 ${errors.role ? "border-red-500" : ""}`}>
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tenant">
-                        <div className="flex items-center py-1">
-                          <Search className="h-4 w-4 mr-2 flex-shrink-0" />
-                          <div>
-                            <div className="font-medium text-sm">Tenant</div>
-                            <div className="text-xs text-gray-500">Looking for a place to rent</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="landlord">
-                        <div className="flex items-center py-1">
-                          <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
-                          <div>
-                            <div className="font-medium text-sm">Landlord</div>
-                            <div className="text-xs text-gray-500">Have properties to rent</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.role && <p className="text-xs sm:text-sm text-red-600">{errors.role}</p>}
-                </div>
-
-                {/* Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    Full Name *
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter your full name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    className={`h-10 sm:h-11 ${errors.name ? "border-red-500" : ""}`}
-                  />
-                  {errors.name && <p className="text-xs sm:text-sm text-red-600">{errors.name}</p>}
-                </div>
-
                 {/* Email */}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-medium">
@@ -285,7 +268,7 @@ export default function SignupPage() {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Create a password"
+                      placeholder="Enter your password"
                       value={formData.password}
                       onChange={(e) => handleInputChange("password", e.target.value)}
                       className={`h-10 sm:h-11 pr-10 ${errors.password ? "border-red-500" : ""}`}
@@ -301,31 +284,15 @@ export default function SignupPage() {
                   {errors.password && <p className="text-xs sm:text-sm text-red-600">{errors.password}</p>}
                 </div>
 
-                {/* Confirm Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-sm font-medium">
-                    Confirm Password *
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm your password"
-                      value={formData.confirmPassword}
-                      onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                      className={`h-10 sm:h-11 pr-10 ${errors.confirmPassword ? "border-red-500" : ""}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.confirmPassword && (
-                    <p className="text-xs sm:text-sm text-red-600">{errors.confirmPassword}</p>
-                  )}
+                {/* Forgot Password Link */}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="text-xs sm:text-sm text-blue-600 hover:text-blue-500 font-medium"
+                    onClick={() => alert("Password reset functionality would be implemented here")}
+                  >
+                    Forgot your password?
+                  </button>
                 </div>
 
                 {/* Submit Error */}
@@ -340,10 +307,10 @@ export default function SignupPage() {
                   {isSubmitting ? (
                     <>
                       <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Creating Account...
+                      Signing In...
                     </>
                   ) : (
-                    "Create Account"
+                    "Sign In"
                   )}
                 </Button>
               </form>
@@ -362,7 +329,7 @@ export default function SignupPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => handleOAuthSignup("google")}
+                    onClick={() => handleOAuthSignIn("google")}
                     disabled={isSubmitting}
                     className="bg-transparent h-10 sm:h-11 text-xs sm:text-sm"
                   >
@@ -388,7 +355,7 @@ export default function SignupPage() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => handleOAuthSignup("facebook")}
+                    onClick={() => handleOAuthSignIn("facebook")}
                     disabled={isSubmitting}
                     className="bg-transparent h-10 sm:h-11 text-xs sm:text-sm"
                   >
@@ -400,16 +367,16 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Sign In Link */}
+              {/* Sign Up Link */}
               <div className="text-center">
                 <p className="text-xs sm:text-sm text-gray-600">
-                  Already have an account?{" "}
+                  Don't have an account?{" "}
                   <button
                     type="button"
-                    onClick={() => (window.location.href = "/")}
+                    onClick={() => (window.location.href = "/signup")}
                     className="font-medium text-blue-600 hover:text-blue-500"
                   >
-                    Sign in
+                    Sign up
                   </button>
                 </p>
               </div>
@@ -421,25 +388,6 @@ export default function SignupPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
-
-      {/* Mobile Features Section */}
-      <div className="lg:hidden bg-gray-50 p-4 sm:p-6">
-        <div className="max-w-md mx-auto">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">Why Choose Nyumba?</h3>
-          <div className="grid grid-cols-2 gap-4 text-center">
-            <div className="flex flex-col items-center">
-              <Users className="h-8 w-8 text-blue-600 mb-2" />
-              <span className="text-sm font-medium text-gray-700">Trusted Community</span>
-              <span className="text-xs text-gray-500">15K+ Users</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <Building2 className="h-8 w-8 text-blue-600 mb-2" />
-              <span className="text-sm font-medium text-gray-700">Quality Properties</span>
-              <span className="text-xs text-gray-500">2K+ Listings</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
