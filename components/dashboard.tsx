@@ -20,17 +20,10 @@ import {
   User,
   MapPin,
   Calendar,
-  Edit,
   Trash2,
-  ArrowLeft,
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { getPropertiesByLandlord } from "@/components/lib/property-store"
 import { LogoutDialog } from "@/components/logout-dialog"
-import { getCurrentUser, initializeMockUser, clearCurrentUser } from "@/components/lib/auth-utils"
-import AddPropertyForm from "@/components/add-property-form"
-import ProfileManagement from "@/components/profile-management"
-import VerificationPrompt from "@/components/verification-prompt"
 import { useAppStore } from "@/lib/store"
 import { api } from "@/lib/api"
 
@@ -40,7 +33,7 @@ export default function Dashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const { user: storeUser } = useAppStore()
+  const { user: storeUser, clearUser } = useAppStore()
 
   // Initialize user on component mount
   useEffect(() => {
@@ -48,9 +41,8 @@ export default function Dashboard() {
       setUser(storeUser)
       setIsLoading(false)
     } else {
-      const currentUser = getCurrentUser() || initializeMockUser()
-      setUser(currentUser)
-      setIsLoading(false)
+      // Redirect to signin if no user
+      window.location.href = "/signin"
     }
   }, [storeUser])
 
@@ -66,7 +58,7 @@ export default function Dashboard() {
   }
 
   const handleLogout = () => {
-    clearCurrentUser()
+    clearUser()
     window.location.href = "/signin"
   }
 
@@ -292,41 +284,49 @@ export default function Dashboard() {
 
 // Component implementations
 function OverviewContent({ user, setActiveTab }) {
-  const [landlordProperties, setLandlordProperties] = useState([])
+  const [properties, setProperties] = useState([])
 
   useEffect(() => {
-    if (user.role === "landlord") {
-      const properties = getPropertiesByLandlord(user.email)
-      setLandlordProperties(properties)
+    const loadProperties = async () => {
+      try {
+        const allProperties = await api.getProperties()
+        const landlordProperties = allProperties.filter((property) => property.landlord.email === user.email)
+        setProperties(landlordProperties)
+      } catch (error) {
+        console.error("Error loading properties:", error)
+      }
     }
-  }, [user.email, user.role])
+
+    if (user?.email) {
+      loadProperties()
+    }
+  }, [user?.email])
 
   const stats = [
     {
       label: "Total Properties",
-      value: landlordProperties.length.toString(),
+      value: properties.length.toString(),
       icon: Building,
       color: "text-blue-600",
     },
     {
       label: "Total Views",
-      value: landlordProperties.reduce((sum, p) => sum + (p.analytics?.views || 0), 0).toString(),
+      value: properties.reduce((sum, p) => sum + (p.analytics?.views || 0), 0).toString(),
       icon: Eye,
       color: "text-green-600",
     },
     {
       label: "Total Inquiries",
-      value: landlordProperties.reduce((sum, p) => sum + (p.analytics?.inquiries || 0), 0).toString(),
+      value: properties.reduce((sum, p) => sum + (p.analytics?.inquiries || 0), 0).toString(),
       icon: MessageSquare,
       color: "text-purple-600",
     },
     {
       label: "Avg Performance",
       value:
-        landlordProperties.length > 0
+        properties.length > 0
           ? Math.round(
-              landlordProperties.reduce((sum, p) => sum + (p.analytics?.performanceScore || 0), 0) /
-                landlordProperties.length,
+              properties.reduce((sum, p) => sum + (p.analytics?.performanceScore || 0), 0) / properties.length,
             ).toString()
           : "0",
       icon: Star,
@@ -339,10 +339,6 @@ function OverviewContent({ user, setActiveTab }) {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
         <p className="text-gray-600">Manage your properties and track your rental business.</p>
-      </div>
-
-      <div className="mb-8">
-        <VerificationPrompt user={user} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -375,23 +371,20 @@ function OverviewContent({ user, setActiveTab }) {
               <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <p className="text-sm">
-                  {landlordProperties.reduce((sum, p) => sum + (p.analytics?.inquiries || 0), 0)} total inquiries
-                  received
+                  {properties.reduce((sum, p) => sum + (p.analytics?.inquiries || 0), 0)} total inquiries received
                 </p>
                 <span className="text-xs text-gray-500">This month</span>
               </div>
               <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <p className="text-sm">
-                  {landlordProperties.reduce((sum, p) => sum + (p.analytics?.views || 0), 0)} total property views
+                  {properties.reduce((sum, p) => sum + (p.analytics?.views || 0), 0)} total property views
                 </p>
                 <span className="text-xs text-gray-500">This month</span>
               </div>
               <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <p className="text-sm">
-                  {landlordProperties.filter((p) => p.analytics?.trending).length} properties trending
-                </p>
+                <p className="text-sm">{properties.filter((p) => p.analytics?.trending).length} properties trending</p>
                 <span className="text-xs text-gray-500">Right now</span>
               </div>
             </div>
@@ -448,7 +441,6 @@ function OverviewContent({ user, setActiveTab }) {
 function PropertiesContent({ user, setActiveTab }) {
   const [properties, setProperties] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [editingProperty, setEditingProperty] = useState(null)
 
   useEffect(() => {
     const loadLandlordProperties = async () => {
@@ -469,16 +461,12 @@ function PropertiesContent({ user, setActiveTab }) {
     }
   }, [user?.email])
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price) => {
     return new Intl.NumberFormat("en-ZM", {
       style: "currency",
       currency: "ZMW",
       minimumFractionDigits: 0,
     }).format(price)
-  }
-
-  const handleEditProperty = (property) => {
-    setEditingProperty(property)
   }
 
   const handleDeleteProperty = async (propertyId) => {
@@ -500,24 +488,6 @@ function PropertiesContent({ user, setActiveTab }) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-      </div>
-    )
-  }
-
-  if (editingProperty) {
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Property</h1>
-            <p className="text-gray-600">Update your property listing details</p>
-          </div>
-          <Button variant="outline" onClick={() => setEditingProperty(null)}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Properties
-          </Button>
-        </div>
-        <AddPropertyForm property={editingProperty} onComplete={() => setEditingProperty(null)} />
       </div>
     )
   }
@@ -603,15 +573,6 @@ function PropertiesContent({ user, setActiveTab }) {
                     variant="outline"
                     size="sm"
                     className="flex-1 bg-transparent"
-                    onClick={() => handleEditProperty(property)}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 bg-transparent"
                     onClick={() => window.open(`/property/${property.id}`, "_blank")}
                   >
                     <Eye className="h-4 w-4 mr-1" />
@@ -636,7 +597,18 @@ function PropertiesContent({ user, setActiveTab }) {
 }
 
 function AddPropertyContent({ user, setActiveTab }) {
-  return <AddPropertyForm />
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Add Property</h1>
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Plus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Add New Property</h3>
+          <p className="text-gray-600 mb-4">Property listing form will be available here.</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
 
 function MessagesContent() {
@@ -670,7 +642,18 @@ function AnalyticsContent({ user }) {
 }
 
 function ProfileContent({ user, setUser }) {
-  return <ProfileManagement />
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Profile Management</h1>
+      <Card>
+        <CardContent className="p-8 text-center">
+          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Profile Settings</h3>
+          <p className="text-gray-600">Profile management will be available here.</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
 
 function SettingsContent({ user }) {
