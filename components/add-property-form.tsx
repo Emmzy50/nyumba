@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Upload, X, MapPin, Home, FileText, Camera } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Upload, X, MapPin, Home, FileText, Camera, AlertCircle, CheckCircle } from "lucide-react"
 import { useState } from "react"
 import { addProperty } from "@/lib/firebase/firestore"
 import { uploadPropertyImages } from "@/lib/firebase/storage"
@@ -42,11 +43,57 @@ export function AddPropertyForm() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
   const { user } = useAppStore()
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => ({ ...prev, [field]: "" }))
+    }
+    if (error) setError(null)
+  }
+
+  const validateForm = () => {
+    const errors: { [key: string]: string } = {}
+
+    if (!formData.title.trim()) {
+      errors.title = "Property title is required"
+    }
+
+    if (!formData.location.trim()) {
+      errors.location = "Location is required"
+    }
+
+    if (!formData.price.trim()) {
+      errors.price = "Price is required"
+    } else if (isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
+      errors.price = "Please enter a valid price"
+    }
+
+    if (!formData.propertyType) {
+      errors.propertyType = "Property type is required"
+    }
+
+    if (!formData.bedrooms) {
+      errors.bedrooms = "Number of bedrooms is required"
+    }
+
+    if (!formData.bathrooms) {
+      errors.bathrooms = "Number of bathrooms is required"
+    }
+
+    if (!formData.description.trim()) {
+      errors.description = "Property description is required"
+    } else if (formData.description.length < 20) {
+      errors.description = "Description must be at least 20 characters"
+    }
+
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
   }
 
   const handleImageUpload = (files: FileList | null) => {
@@ -93,21 +140,32 @@ export function AddPropertyForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setSuccess(null)
+
+    if (!validateForm()) {
+      setError("Please fix the errors above before submitting")
+      return
+    }
+
+    if (!user) {
+      setError("You must be logged in to add a property. Please sign in and try again.")
+      return
+    }
+
+    console.log("Starting property submission...", { user: user.email, formData })
     setIsSubmitting(true)
 
     try {
-      if (!user) {
-        alert("You must be logged in to add a property.")
-        return
-      }
-
       let imageUrls: string[] = []
       if (formData.images.length > 0) {
+        console.log(`Uploading ${formData.images.length} images...`)
         try {
           imageUrls = await uploadPropertyImages(formData.images)
+          console.log("Images uploaded successfully:", imageUrls)
         } catch (imageError) {
           console.error("Error uploading images:", imageError)
-          alert("Failed to upload images. Please try again.")
+          setError("Failed to upload images. Please try again or contact support if the problem persists.")
           return
         }
       }
@@ -134,8 +192,9 @@ export function AddPropertyForm() {
         virtualTour: "",
       }
 
+      console.log("Saving property to database...", propertyData)
       const propertyId = await addProperty(propertyData)
-      console.log("Property saved with ID:", propertyId)
+      console.log("Property saved successfully with ID:", propertyId)
 
       setFormData({
         title: "",
@@ -149,10 +208,19 @@ export function AddPropertyForm() {
         images: [],
       })
 
-      alert("Property listed successfully!")
-    } catch (error) {
+      setSuccess("Property listed successfully! Your listing is now live and visible to potential tenants.")
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    } catch (error: any) {
       console.error("Error submitting property:", error)
-      alert("Failed to list property. Please try again.")
+      let errorMessage = "Failed to list property. Please try again."
+      if (error.code === "permission-denied") {
+        errorMessage = "You don't have permission to add properties. Please contact support."
+      } else if (error.code === "unavailable") {
+        errorMessage = "Service is temporarily unavailable. Please try again later."
+      } else if (error.message?.includes("offline")) {
+        errorMessage = "You appear to be offline. Please check your internet connection and try again."
+      }
+      setError(errorMessage)
     } finally {
       setIsSubmitting(false)
     }
@@ -164,6 +232,20 @@ export function AddPropertyForm() {
         <h1 className="text-3xl font-bold text-gray-900">Add New Property</h1>
         <p className="text-gray-600 mt-2">Create a new property listing for potential tenants</p>
       </div>
+
+      {error && (
+        <Alert className="mb-6 border-red-200 bg-red-50">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-700">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className="mb-6 border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-700">{success}</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic Information */}
@@ -184,8 +266,10 @@ export function AddPropertyForm() {
                   placeholder="e.g., Modern 2BR Apartment Downtown"
                   value={formData.title}
                   onChange={(e) => handleInputChange("title", e.target.value)}
+                  className={validationErrors.title ? "border-red-500" : ""}
                   required
                 />
+                {validationErrors.title && <p className="text-sm text-red-600">{validationErrors.title}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="propertyType">Property Type *</Label>
@@ -194,7 +278,7 @@ export function AddPropertyForm() {
                   onValueChange={(value) => handleInputChange("propertyType", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={validationErrors.propertyType ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select property type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -207,6 +291,9 @@ export function AddPropertyForm() {
                     <SelectItem value="boarding-house">Boarding House</SelectItem>
                   </SelectContent>
                 </Select>
+                {validationErrors.propertyType && (
+                  <p className="text-sm text-red-600">{validationErrors.propertyType}</p>
+                )}
               </div>
             </div>
 
@@ -218,7 +305,7 @@ export function AddPropertyForm() {
                   onValueChange={(value) => handleInputChange("bedrooms", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={validationErrors.bedrooms ? "border-red-500" : ""}>
                     <SelectValue placeholder="Bedrooms" />
                   </SelectTrigger>
                   <SelectContent>
@@ -230,6 +317,7 @@ export function AddPropertyForm() {
                     <SelectItem value="5+">5+ Bedrooms</SelectItem>
                   </SelectContent>
                 </Select>
+                {validationErrors.bedrooms && <p className="text-sm text-red-600">{validationErrors.bedrooms}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bathrooms">Bathrooms *</Label>
@@ -238,7 +326,7 @@ export function AddPropertyForm() {
                   onValueChange={(value) => handleInputChange("bathrooms", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={validationErrors.bathrooms ? "border-red-500" : ""}>
                     <SelectValue placeholder="Bathrooms" />
                   </SelectTrigger>
                   <SelectContent>
@@ -250,6 +338,7 @@ export function AddPropertyForm() {
                     <SelectItem value="3+">3+ Bathrooms</SelectItem>
                   </SelectContent>
                 </Select>
+                {validationErrors.bathrooms && <p className="text-sm text-red-600">{validationErrors.bathrooms}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="price">Monthly Rent (ZMW) *</Label>
@@ -259,12 +348,13 @@ export function AddPropertyForm() {
                     id="price"
                     type="number"
                     placeholder="4500"
-                    className="pl-12"
+                    className={`pl-12 ${validationErrors.price ? "border-red-500" : ""}`}
                     value={formData.price}
                     onChange={(e) => handleInputChange("price", e.target.value)}
                     required
                   />
                 </div>
+                {validationErrors.price && <p className="text-sm text-red-600">{validationErrors.price}</p>}
               </div>
             </div>
           </CardContent>
@@ -288,8 +378,10 @@ export function AddPropertyForm() {
                   placeholder="e.g., 123 Main St, Lusaka, Zambia"
                   value={formData.location}
                   onChange={(e) => handleInputChange("location", e.target.value)}
+                  className={validationErrors.location ? "border-red-500" : ""}
                   required
                 />
+                {validationErrors.location && <p className="text-sm text-red-600">{validationErrors.location}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="houseNumber">Unit/House Number</Label>
@@ -319,12 +411,15 @@ export function AddPropertyForm() {
               <Textarea
                 id="description"
                 placeholder="Describe your property, amenities, nearby attractions, and what makes it special..."
-                className="min-h-[120px]"
+                className={`min-h-[120px] ${validationErrors.description ? "border-red-500" : ""}`}
                 value={formData.description}
                 onChange={(e) => handleInputChange("description", e.target.value)}
                 required
               />
-              <p className="text-sm text-gray-500">{formData.description.length}/500 characters</p>
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-500">{formData.description.length}/500 characters</p>
+                {validationErrors.description && <p className="text-sm text-red-600">{validationErrors.description}</p>}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -402,11 +497,18 @@ export function AddPropertyForm() {
 
         {/* Submit Button */}
         <div className="flex justify-end space-x-4">
-          <Button type="button" variant="outline">
+          <Button type="button" variant="outline" disabled={isSubmitting}>
             Save as Draft
           </Button>
           <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
-            {isSubmitting ? "Publishing..." : "Publish Listing"}
+            {isSubmitting ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Publishing...
+              </>
+            ) : (
+              "Publish Listing"
+            )}
           </Button>
         </div>
       </form>
